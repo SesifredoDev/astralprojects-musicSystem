@@ -179,6 +179,28 @@ export default function HomePage() {
     () => atmospheres.map(tag => ({ value: tag.id || tag._id, label: tag.name })),
     [atmospheres]
   );
+  const moodSongCounts = useMemo(() => {
+    const counts = new Map();
+    songs.forEach(song => {
+      (song?.moods || []).forEach(tag => {
+        const tagId = String(tag?.id || tag?._id || "");
+        if (!tagId) return;
+        counts.set(tagId, (counts.get(tagId) || 0) + 1);
+      });
+    });
+    return counts;
+  }, [songs]);
+  const atmosphereSongCounts = useMemo(() => {
+    const counts = new Map();
+    songs.forEach(song => {
+      (song?.atmosphere || []).forEach(tag => {
+        const tagId = String(tag?.id || tag?._id || "");
+        if (!tagId) return;
+        counts.set(tagId, (counts.get(tagId) || 0) + 1);
+      });
+    });
+    return counts;
+  }, [songs]);
 
   async function loadAll() {
     setError("");
@@ -621,7 +643,9 @@ export default function HomePage() {
               <li key={mood.id || mood._id} className="songRow">
                 <img src={resolveFileUrl(mood.cover)} alt={mood.name} />
                 <div>
-                  <strong>{mood.name}</strong>
+                  <strong>
+                    {mood.name} ({moodSongCounts.get(String(mood.id || mood._id || "")) || 0})
+                  </strong>
                   <p>{mood.description}</p>
                   <div className="rowActions">
                     <button
@@ -646,7 +670,9 @@ export default function HomePage() {
               <li key={atmosphere.id || atmosphere._id} className="songRow">
                 <img src={resolveFileUrl(atmosphere.cover)} alt={atmosphere.name} />
                 <div>
-                  <strong>{atmosphere.name}</strong>
+                  <strong>
+                    {atmosphere.name} ({atmosphereSongCounts.get(String(atmosphere.id || atmosphere._id || "")) || 0})
+                  </strong>
                   <p>{atmosphere.description}</p>
                   <div className="rowActions">
                     <button
