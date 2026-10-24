@@ -149,6 +149,39 @@ async function uploadFile(file, kind) {
   };
 }
 
+function formatDuration(secondsValue) {
+  const totalSeconds = Math.max(0, Math.round(Number(secondsValue) || 0));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+async function readAudioDurationSeconds(file) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const audio = new Audio();
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      URL.revokeObjectURL(objectUrl);
+      const duration = Number(audio.duration);
+      if (!Number.isFinite(duration) || duration < 0) {
+        reject(new Error("Failed to read audio duration."));
+        return;
+      }
+      resolve(Math.round(duration));
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to read audio duration."));
+    };
+    audio.src = objectUrl;
+  });
+}
+
 export default function HomePage() {
   const [moods, setMoods] = useState([]);
   const [atmospheres, setAtmospheres] = useState([]);
@@ -200,6 +233,18 @@ export default function HomePage() {
       });
     });
     return counts;
+  }, [songs]);
+  const moodTotalTimes = useMemo(() => {
+    const totals = new Map();
+    songs.forEach(song => {
+      const duration = Math.max(0, Number(song?.durationSeconds) || 0);
+      (song?.moods || []).forEach(tag => {
+        const tagId = String(tag?.id || tag?._id || "");
+        if (!tagId) return;
+        totals.set(tagId, (totals.get(tagId) || 0) + duration);
+      });
+    });
+    return totals;
   }, [songs]);
 
   async function loadAll() {
@@ -316,7 +361,8 @@ export default function HomePage() {
         fileName: String(songForm.fileName || "").trim(),
         moods: Array.isArray(songForm.moods) ? songForm.moods : [],
         atmosphere: Array.isArray(songForm.atmosphere) ? songForm.atmosphere : [],
-        attribution: String(songForm.attribution || "").trim()
+        attribution: String(songForm.attribution || "").trim(),
+        durationSeconds: await readAudioDurationSeconds(songAudioFile)
       };
 
       const [coverUpload, audioUpload] = await Promise.all([
@@ -613,6 +659,7 @@ export default function HomePage() {
                   Audio: <a href={resolveFileUrl(song.audioUrl)} target="_blank" rel="noreferrer">{song.fileName}</a>
                 </p>
                 {song.attribution ? <p>Attribution: {song.attribution}</p> : null}
+                <p>Duration: {formatDuration(song.durationSeconds)}</p>
                 <p>
                   Moods: {(song.moods || []).map(tag => tag.name).join(", ") || "None"}
                 </p>
@@ -644,7 +691,7 @@ export default function HomePage() {
                 <img src={resolveFileUrl(mood.cover)} alt={mood.name} />
                 <div>
                   <strong>
-                    {mood.name} ({moodSongCounts.get(String(mood.id || mood._id || "")) || 0})
+                    {mood.name} ({moodSongCounts.get(String(mood.id || mood._id || "")) || 0} songs, {formatDuration(moodTotalTimes.get(String(mood.id || mood._id || "")) || 0)})
                   </strong>
                   <p>{mood.description}</p>
                   <div className="rowActions">
